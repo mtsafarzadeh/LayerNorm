@@ -1,3 +1,43 @@
+import torch.nn as nn
+import enum
+
+class LayerNormType(enum.Enum):
+    L2 = enum.auto()
+    L1 = enum.auto()
+    L1_MEAN_ABS = enum.auto()
+    
+class LayerNorm(nn.Module):
+    r"""Applies Layer Normalization over a mini-batch of inputs. For EXPERIMENTAL purposes only - does not support
+    PNNF conversion and works only in FP mode
+
+    Args:
+        name (str): name of the modul
+        input_a (str): name of the input module or external input
+        eps (float): a value added to the denominator for numerical stability. Default: 1e-5
+
+        >>> m = LayerNorm(name='layernorm', input_a='embedding', embedding_dim) # calculate LN over last dimension
+        >>> output = m(input_a)
+    """
+
+    def __init__(
+        self,
+        name: str,
+        input_a: str,
+        shape: Union[int, Tuple[int], List[int], torch.Size],
+        eps: float = 1e-5,
+        layer_norm_type: LayerNormType = LayerNormType.L2,
+        **kwargs,
+    ):
+        super().__init__(name=name, input_a=input_a, ignore_in_pnnf=True, **kwargs)
+        self.core = nn.LayerNorm(shape, eps, **kwargs)
+        self.layer_norm_type = layer_norm_type
+        if self.layer_norm_type == LayerNormType.L1:
+            self.core = L1LayerNorm(shape, eps, **kwargs)
+        elif self.layer_norm_type == LayerNormType.L1_MEAN_ABS:
+            self.core = MeanAbsLayerNorm(shape, eps, **kwargs)
+        else:
+            self.core = nn.LayerNorm(shape, eps, **kwargs)
+            
 class L1LayerNormBase(nn.Module):
     def __init__(
         self,
